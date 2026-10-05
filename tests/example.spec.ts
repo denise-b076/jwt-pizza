@@ -103,3 +103,11 @@ test('purchase with login', async ({ page }) => {
 
   await expect(page.getByText('0.008')).toBeVisible();
 });
+
+test('about and history', async({ page }) => {
+  await basicInit(page);
+  await page.getByRole('link', { name: 'About' }).click();
+  await expect(page.getByRole('main')).toContainText('The secret sauce');
+  await page.getByRole('link', { name: 'History' }).click();
+  await expect(page.getByRole('heading')).toContainText('Mama Rucci, my my');
+});
