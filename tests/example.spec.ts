@@ -25,6 +25,18 @@ async function basicInit(page: Page) {
   ];  
 
   await page.route('*/**/api/auth', async (route) => {
+    if (route.request().method() == 'DELETE') {
+      if (loggedInUser == undefined) {
+        await route.fulfill({ status: 404, json: { error: 'Not found' } });
+        return;        
+      }
+      loggedInUser = undefined;
+      const logoutRes = {
+        message: 'logout successful'
+      };
+      await route.fulfill({ json: logoutRes });
+      return;
+    }
     const loginReq = route.request().postDataJSON();
     const user = validUsers[loginReq.email];
     if (!user || user.password !== loginReq.password) {
@@ -110,6 +122,18 @@ test('login', async ({ page }) => {
   await page.getByRole('button', { name: 'Login' }).click();
 
   await expect(page.getByRole('link', { name: 'KC' })).toBeVisible();
+});
+
+test('logout', async ({ page }) => {
+  await basicInit(page);
+  await page.getByRole('link', { name: 'Login' }).click();
+  await page.getByRole('textbox', { name: 'Email address' }).fill('d@jwt.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('a');
+  await page.getByRole('button', { name: 'Login' }).click();
+
+  await page.getByRole('link', { name: 'Logout' }).click();
+  await expect(page.getByRole('link', { name: 'KC' })).not.toBeVisible();
 });
 
 test('purchase with login', async ({ page }) => {
