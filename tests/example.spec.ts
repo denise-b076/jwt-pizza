@@ -14,14 +14,15 @@ async function basicInit(page: Page) {
     {
       id: 2,
       name: 'LotaPizza',
+      admins: [{ id: 5, name: 'pizza franchisee', email: 'f@jwt.com' }],
       stores: [
         { id: 4, name: 'Lehi' },
         { id: 5, name: 'Springville' },
         { id: 6, name: 'American Fork' },
       ],
     },
-    { id: 3, name: 'PizzaCorp', stores: [{ id: 7, name: 'Spanish Fork' }] },
-    { id: 4, name: 'topSpot', stores: [] },
+    { id: 3, name: 'PizzaCorp', admins: [{ id: 4, name: 'pizza franchisee', email: 'f@jwt.com' }], stores: [{ id: 7, name: 'Spanish Fork' }] },
+    { id: 4, name: 'topSpot', admins: [{ id: 4, name: 'pizza franchisee', email: 'f@jwt.com' }], stores: [] },
   ];  
 
   const orders = [
@@ -83,7 +84,29 @@ async function basicInit(page: Page) {
     await route.fulfill({ json: menuRes });
   });
 
-  await page.route(/\/api\/franchise(?:\/[^/?]+)?(?:\?.*)?$/, async (route) => {
+  await page.route(/\/api\/franchise(?:\/([^/?]+))?\/store(?:\/([^/?]+))?$/, async (route) => {
+    if (route.request().method() == 'POST') {
+      const createStoreReq = route.request().postDataJSON();
+      const franchiseId = Number(route.request().url().match(/\/api\/franchise\/([^/?]+)\/store/)?.[1]);
+      const name = createStoreReq.name;
+      const createStoreRes = {
+        id: franchiseId,
+        name: name
+      }
+      const franchise = franchises.find((candidate) => Number(candidate.id) === franchiseId);
+      if (!franchise) {
+        await route.fulfill({ status: 404, json: { error: 'Not found' } });
+        return;
+      }
+      franchise.stores.push(createStoreRes);
+      await route.fulfill({ json: createStoreRes });
+      return;
+    }
+    await route.fallback();
+    //DELETE HERE
+  });
+
+  await page.route(/\/api\/franchise(?:\?.*)?$/, async (route) => {
     if (route.request().method() == 'POST') {
       const franchiseCreationReq = route.request().postDataJSON();
       const franchiseCreationRes = {
@@ -91,13 +114,31 @@ async function basicInit(page: Page) {
         id: '5',
       };
       franchises.push(franchiseCreationRes);
-      expect(route.request().method()).toBe('POST');
       await route.fulfill({ json: franchiseCreationRes });
       return;
     }
 
-    else if (route.request().method() == 'DELETE') {
-      const franchiseId = Number(new URL(route.request().url()).pathname.split('/').pop());
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+
+    const franchiseRes = { franchises };
+    await route.fulfill({ json: franchiseRes });
+  });
+
+  await page.route(/\/api\/franchise\/([^/?]+)$/, async (route) => {
+    if (route.request().method() == 'GET') {
+      const userId = Number(route.request().url().match(/\/api\/franchise\/([^/?]+)/)?.[1]);
+      const franchise = franchises.find((candidate) =>
+        candidate.admins?.some((admin) => Number(admin.id) === userId)
+      );
+      await route.fulfill({ json: franchise ? [franchise] : [] });
+      return;
+    }
+
+    if (route.request().method() == 'DELETE') {
+      const franchiseId = Number(route.request().url().match(/\/api\/franchise\/([^/?]+)/)?.[1]);
       const index = franchises.findIndex(
         (franchise) => Number(franchise.id) === franchiseId
       );
@@ -112,10 +153,8 @@ async function basicInit(page: Page) {
       await route.fulfill({ json: franchiseDeleteRes });
       return;
     }
-
-    const franchiseRes = { franchises };
-    expect(route.request().method()).toBe('GET');
-    await route.fulfill({ json: franchiseRes });
+    await route.fulfill({ json: franchises });
+    return;
   });
 
   await page.route('*/**/api/order', async (route) => {
@@ -218,6 +257,25 @@ test('order and view diner dashboard', async ({ page }) => {
   await page.getByRole('link', { name: 'KC' }).click();
   await expect(page.getByRole('main')).toContainText('Here is your history of all the good times.');
   await expect(page.locator('tbody')).toContainText('23');
+});
+
+test('create a store', async({ page }) => {
+  await basicInit(page);
+
+  await page.getByRole('navigation', { name: 'Global' }).getByRole('link', { name: 'Franchise' }).click();
+  await page.getByRole('link', { name: 'login', exact: true }).click();
+  await page.getByRole('textbox', { name: 'Email address' }).fill('f@jwt.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('f');
+  await page.getByRole('button', { name: 'Login' }).click();
+  
+  await page.getByRole('button', { name: 'Create store' }).click();
+  await page.getByRole('textbox', { name: 'store name' }).click();
+  await page.getByRole('textbox', { name: 'store name' }).fill('cool store');
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  await expect(page.getByRole('cell', { name: 'cool store' })).toBeVisible();
+
 });
 
 test('create and delete a franchise', async({ page }) => {
