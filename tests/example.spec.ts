@@ -21,8 +21,8 @@ async function basicInit(page: Page) {
         { id: 6, name: 'American Fork' },
       ],
     },
-    { id: 3, name: 'PizzaCorp', admins: [{ id: 4, name: 'pizza franchisee', email: 'f@jwt.com' }], stores: [{ id: 7, name: 'Spanish Fork' }] },
-    { id: 4, name: 'topSpot', admins: [{ id: 4, name: 'pizza franchisee', email: 'f@jwt.com' }], stores: [] },
+    { id: 3, name: 'PizzaCorp', admins: [{ id: 4, name: 'pizza franchisee', email: 'l@jwt.com' }], stores: [{ id: 7, name: 'Spanish Fork' }] },
+    { id: 4, name: 'topSpot', admins: [{ id: 4, name: 'pizza franchisee', email: 'l@jwt.com' }], stores: [] },
   ];  
 
   const orders = [
@@ -43,6 +43,23 @@ async function basicInit(page: Page) {
   ];
 
   await page.route('*/**/api/auth', async (route) => {
+    if (route.request().method() == 'POST') {
+      const registerReq = route.request().postDataJSON();
+      const registerRes = {
+        user: { 
+          id: '6', 
+          name: registerReq.name, 
+          password: registerReq.password,
+          email: registerReq.email, 
+          roles: [{ 
+            role: Role.Diner 
+          }] 
+        }
+      };
+      validUsers[registerReq.email] = registerRes.user;
+      await route.fulfill({ json: registerRes });
+      return;
+    }
     if (route.request().method() == 'DELETE') {
       if (loggedInUser == undefined) {
         await route.fulfill({ status: 404, json: { error: 'Not found' } });
@@ -193,6 +210,18 @@ async function basicInit(page: Page) {
 
   await page.goto('/');
 }
+
+test('register', async ({ page }) => {
+  await basicInit(page);
+  await page.getByRole('link', { name: 'Register' }).click();
+  await page.getByRole('textbox', { name: 'Full name' }).fill('new');
+  await page.getByRole('textbox', { name: 'Email address' }).click();
+  await page.getByRole('textbox', { name: 'Email address' }).fill('n@jwt.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('n');
+  await page.getByRole('button', { name: 'Register' }).click();
+  await expect(page.getByRole('link', { name: 'n', exact: true })).toBeVisible();
+});
 
 test('login', async ({ page }) => {
   await basicInit(page);
