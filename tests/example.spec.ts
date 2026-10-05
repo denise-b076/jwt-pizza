@@ -4,7 +4,25 @@ import { Role, User } from '../src/service/pizzaService';
 
 async function basicInit(page: Page) {
   let loggedInUser: User | undefined;
-  const validUsers: Record<string, User> = { 'd@jwt.com': { id: '3', name: 'Kai Chen', email: 'd@jwt.com', password: 'a', roles: [{ role: Role.Diner }] } };
+  const validUsers: Record<string, User> = { 
+    'd@jwt.com': { id: '3', name: 'Kai Chen', email: 'd@jwt.com', password: 'a', roles: [{ role: Role.Diner }] },
+    'a@jwt.com': { id: '4', name: 'Big Admin', email: 'a@jwt.com', password: 'admin', roles: [{ role: Role.Admin }] },
+    'f@jwt.com': { id: '5', name: 'Franchise Man', email: 'f@jwt.com', password: 'f', roles: [{ role: Role.Franchisee }] } 
+  };
+
+  const franchises = [
+    {
+      id: 2,
+      name: 'LotaPizza',
+      stores: [
+        { id: 4, name: 'Lehi' },
+        { id: 5, name: 'Springville' },
+        { id: 6, name: 'American Fork' },
+      ],
+    },
+    { id: 3, name: 'PizzaCorp', stores: [{ id: 7, name: 'Spanish Fork' }] },
+    { id: 4, name: 'topSpot', stores: [] },
+  ];  
 
   await page.route('*/**/api/auth', async (route) => {
     const loginReq = route.request().postDataJSON();
@@ -37,21 +55,19 @@ async function basicInit(page: Page) {
   });
 
   await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
-    const franchiseRes = {
-      franchises: [
-        {
-          id: 2,
-          name: 'LotaPizza',
-          stores: [
-            { id: 4, name: 'Lehi' },
-            { id: 5, name: 'Springville' },
-            { id: 6, name: 'American Fork' },
-          ],
-        },
-        { id: 3, name: 'PizzaCorp', stores: [{ id: 7, name: 'Spanish Fork' }] },
-        { id: 4, name: 'topSpot', stores: [] },
-      ],
-    };
+    if (route.request().method() == 'POST') {
+      const franchiseCreationReq = route.request().postDataJSON();
+      const franchiseCreationRes = {
+        ...franchiseCreationReq,
+        id: '5',
+      };
+      franchises.push(franchiseCreationRes);
+      expect(route.request().method()).toBe('POST');
+      await route.fulfill({ json: franchiseCreationRes });
+      return;
+    }
+
+    const franchiseRes = { franchises };
     expect(route.request().method()).toBe('GET');
     await route.fulfill({ json: franchiseRes });
   });
@@ -106,8 +122,30 @@ test('purchase with login', async ({ page }) => {
 
 test('about and history', async({ page }) => {
   await basicInit(page);
+
   await page.getByRole('link', { name: 'About' }).click();
   await expect(page.getByRole('main')).toContainText('The secret sauce');
   await page.getByRole('link', { name: 'History' }).click();
   await expect(page.getByRole('heading')).toContainText('Mama Rucci, my my');
+});
+
+test('create a franchise', async({ page }) => {
+  await basicInit(page);
+
+  await page.getByRole('link', { name: 'Login' }).click();
+  await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+  await page.getByRole('textbox', { name: 'Password' }).click();
+  await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page.getByRole('link', { name: 'BA' })).toBeVisible();
+
+  await page.getByRole('link', { name: 'Admin' }).click();
+
+  await page.getByRole('button', { name: 'Add Franchise' }).click();
+  await page.getByRole('textbox', { name: 'franchise name' }).click();
+  await page.getByRole('textbox', { name: 'franchise name' }).fill('TestCool');
+  await page.getByRole('textbox', { name: 'franchisee admin email' }).click();
+  await page.getByRole('textbox', { name: 'franchisee admin email' }).fill('f@jwt.com');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.getByRole('table')).toContainText('TestCool');
 });
