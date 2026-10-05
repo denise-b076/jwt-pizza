@@ -24,6 +24,23 @@ async function basicInit(page: Page) {
     { id: 4, name: 'topSpot', stores: [] },
   ];  
 
+  const orders = [
+    {
+      id: 1,
+      franchiseId: 2,
+      storeId: 5,
+      date: '2024-06-05T05:14:40.000Z',
+      items: [
+        {
+          id: 1,
+          menuId: 1,
+          description: 'Veggie',
+          price: 0.05
+        }
+      ]
+    }
+  ];
+
   await page.route('*/**/api/auth', async (route) => {
     if (route.request().method() == 'DELETE') {
       if (loggedInUser == undefined) {
@@ -102,11 +119,21 @@ async function basicInit(page: Page) {
   });
 
   await page.route('*/**/api/order', async (route) => {
+    if (route.request().method() == 'GET') {
+      const viewUserOrderRes = {
+        dinerId: loggedInUser?.id,
+        orders: orders,
+        page: 1
+      };
+      await route.fulfill({ json: viewUserOrderRes });
+      return;
+    }
     const orderReq = route.request().postDataJSON();
     const orderRes = {
-      order: { ...orderReq, id: 23 },
+      order: { ...orderReq, id: 23, date: '2024-06-05T05:14:40.000Z' },
       jwt: 'eyJpYXQ',
     };
+    orders.push(orderRes.order);
     expect(route.request().method()).toBe('POST');
     await route.fulfill({ json: orderRes });
   });
@@ -168,6 +195,29 @@ test('about and history', async({ page }) => {
   await expect(page.getByRole('main')).toContainText('The secret sauce');
   await page.getByRole('link', { name: 'History' }).click();
   await expect(page.getByRole('heading')).toContainText('Mama Rucci, my my');
+});
+
+test('order and view diner dashboard', async ({ page }) => {
+  await basicInit(page);
+
+  await page.getByRole('button', { name: 'Order now' }).click();
+
+  await expect(page.locator('h2')).toContainText('Awesome is a click away');
+  await page.getByRole('combobox').selectOption('4');
+  await page.getByRole('link', { name: 'Image Description Veggie A' }).click();
+  await page.getByRole('link', { name: 'Image Description Pepperoni' }).click();
+  await expect(page.locator('form')).toContainText('Selected pizzas: 2');
+  await page.getByRole('button', { name: 'Checkout' }).click();
+
+  await page.getByPlaceholder('Email address').fill('d@jwt.com');
+  await page.getByPlaceholder('Password').fill('a');
+  await page.getByRole('button', { name: 'Login' }).click();
+
+  await page.getByRole('button', { name: 'Pay now' }).click();
+
+  await page.getByRole('link', { name: 'KC' }).click();
+  await expect(page.getByRole('main')).toContainText('Here is your history of all the good times.');
+  await expect(page.locator('tbody')).toContainText('23');
 });
 
 test('create and delete a franchise', async({ page }) => {
