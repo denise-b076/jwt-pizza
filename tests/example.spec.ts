@@ -54,7 +54,7 @@ async function basicInit(page: Page) {
     await route.fulfill({ json: menuRes });
   });
 
-  await page.route(/\/api\/franchise(\?.*)?$/, async (route) => {
+  await page.route(/\/api\/franchise(?:\/[^/?]+)?(?:\?.*)?$/, async (route) => {
     if (route.request().method() == 'POST') {
       const franchiseCreationReq = route.request().postDataJSON();
       const franchiseCreationRes = {
@@ -64,6 +64,23 @@ async function basicInit(page: Page) {
       franchises.push(franchiseCreationRes);
       expect(route.request().method()).toBe('POST');
       await route.fulfill({ json: franchiseCreationRes });
+      return;
+    }
+
+    else if (route.request().method() == 'DELETE') {
+      const franchiseId = Number(new URL(route.request().url()).pathname.split('/').pop());
+      const index = franchises.findIndex(
+        (franchise) => Number(franchise.id) === franchiseId
+      );
+      if (index === -1) {
+        await route.fulfill({ status: 404, json: { error: 'Not found' } });
+        return;
+      }
+      franchises.splice(index, 1);
+      const franchiseDeleteRes = {
+        message: 'franchise deleted'
+      };
+      await route.fulfill({ json: franchiseDeleteRes });
       return;
     }
 
@@ -129,7 +146,7 @@ test('about and history', async({ page }) => {
   await expect(page.getByRole('heading')).toContainText('Mama Rucci, my my');
 });
 
-test('create a franchise', async({ page }) => {
+test('create and delete a franchise', async({ page }) => {
   await basicInit(page);
 
   await page.getByRole('link', { name: 'Login' }).click();
@@ -148,4 +165,8 @@ test('create a franchise', async({ page }) => {
   await page.getByRole('textbox', { name: 'franchisee admin email' }).fill('f@jwt.com');
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('table')).toContainText('TestCool');
+
+  await page.locator('tbody:nth-child(5) > .border-neutral-500 > .px-6 > .px-2').click();
+  await page.getByRole('button', { name: 'Close' }).click();
+  await expect(page.getByRole('cell', { name: 'TestCool' })).not.toBeVisible();
 });
