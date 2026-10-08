@@ -99,3 +99,79 @@ test('updateUser password', async({ page }) => {
     await page.getByRole('button', { name: 'Login' }).click();
     await expect(page.getByRole('link', { name: 'pd' })).toBeVisible();
 });
+
+test ('updateUser franchisee', async({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('f@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('franchisee');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'pf' }).click();
+    
+    await expect(page.getByText('pizza franchisee', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('textbox').first().click();
+    await page.getByRole('textbox').first().fill('pizza franchiseex');
+    await page.getByRole('button', { name: 'Update' }).click();
+
+    await page.waitForSelector('[role="dialog"].hidden', { state: 'attached' });
+    await expect(page.getByText('pizza franchiseex', { exact: true })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Logout' }).click();
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('f@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('franchisee');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'pf' }).click();
+
+    await expect(page.getByText('pizza franchiseex', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('textbox').first().click();
+    await page.getByRole('textbox').first().fill('pizza franchisee');
+    await page.getByRole('button', { name: 'Update' }).click();
+    
+    await page.waitForSelector('[role="dialog"].hidden', { state: 'attached' });
+    await expect(page.getByText('pizza franchisee', { exact: true })).toBeVisible();
+});
+
+test('updateUser admin', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: '常' }).click();
+    
+    await expect(page.getByText('常用名字', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('textbox').first().click();
+    await page.getByRole('textbox').first().fill('常用名字x');
+    await page.getByRole('button', { name: 'Update' }).click();
+
+    await page.waitForSelector('[role="dialog"].hidden', { state: 'attached' });
+    await expect(page.getByText('常用名字x', { exact: true })).toBeVisible();
+
+    await page.getByRole('link', { name: 'Logout' }).click();
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: '常' }).click();
+
+    await expect(page.getByText('常用名字x', { exact: true })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.getByRole('textbox').first().click();
+    await page.getByRole('textbox').first().fill('常用名字');
+    await page.getByRole('button', { name: 'Update' }).click();
+    
+    await page.waitForSelector('[role="dialog"].hidden', { state: 'attached' });
+    await expect(page.getByText('常用名字', { exact: true })).toBeVisible();
+});
