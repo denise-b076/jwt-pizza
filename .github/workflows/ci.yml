@@ -9,30 +9,11 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0.29
-        env:
-          MYSQL_ROOT_PASSWORD: tempdbpassword
-          MYSQL_DATABASE: pizza_e2e
-        ports:
-          - '3306:3306'
-        options: >-
-          --health-cmd "mysqladmin ping -ptempdbpassword"
-          --health-interval 10s
-          --health-start-period 10s
-          --health-timeout 5s
-          --health-retries 10
     outputs:
       version: ${{ steps.set_version.outputs.version }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-      - name: Checkout backend
-        uses: actions/checkout@v4
-        with:
-          repository: denise-b076/jwt-pizza-service
-          path: jwt-pizza-service
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -50,72 +31,6 @@ jobs:
         run: |
           npm ci && npm run build
           cp dist/index.html dist/404.html
-
-      - name: Start backend
-        working-directory: jwt-pizza-service
-        run: |
-          npm ci
-          cat > src/config.js <<'EOF'
-          module.exports = {
-            jwtSecret: 'frontend-e2e-test-secret',
-            db: {
-              connection: {
-                host: '127.0.0.1',
-                user: 'root',
-                password: 'tempdbpassword',
-                database: 'pizza_e2e',
-                connectTimeout: 60000,
-              },
-              listPerPage: 10,
-            },
-            factory: {
-              url: 'https://pizza-factory.cs329.click',
-              apiKey: '',
-            },
-          };
-          EOF
-          npm start > "$RUNNER_TEMP/jwt-pizza-service.log" 2>&1 &
-          backend_pid=$!
-          echo "$backend_pid" > "$RUNNER_TEMP/jwt-pizza-service.pid"
-
-          for attempt in {1..20}; do
-            if curl --fail --silent http://localhost:3000/api/docs; then
-              echo "Backend is ready."
-              exit 0
-            fi
-
-            if ! kill -0 "$backend_pid" 2>/dev/null; then
-              echo "Backend exited before becoming ready."
-              cat "$RUNNER_TEMP/jwt-pizza-service.log"
-              exit 1
-            fi
-
-            echo "Backend is not ready yet; retrying..."
-            sleep 1
-          done
-
-          echo "Backend did not become ready."
-          cat "$RUNNER_TEMP/jwt-pizza-service.log"
-          exit 1
-
-      - name: Seed backend test data
-        run: |
-          curl --fail --retry 5 --retry-delay 1 \
-            -X POST http://localhost:3000/api/auth \
-            -H 'Content-Type: application/json' \
-            -d '{"name":"pizza franchisee","email":"f@jwt.com","password":"franchisee"}'
-
-          admin_token=$(curl --fail -sS \
-            -X PUT http://localhost:3000/api/auth \
-            -H 'Content-Type: application/json' \
-            -d '{"email":"a@jwt.com","password":"admin"}' | jq -r '.token')
-
-          test "$admin_token" != "null"
-          curl --fail -sS \
-            -X POST http://localhost:3000/api/franchise \
-            -H 'Content-Type: application/json' \
-            -H "Authorization: Bearer $admin_token" \
-            -d '{"name":"pizzaPocket","admins":[{"email":"f@jwt.com"}]}'
 
       - name: Update pages artifact
         uses: actions/upload-pages-artifact@v3
