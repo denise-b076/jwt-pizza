@@ -64,6 +64,11 @@ async function mockUserApi(page: Page) {
         await route.fulfill({ json: loggedInUser });
     });
 
+    await page.route(/\/api\/user\?.*$/, async (route) => {
+        expect(route.request().method()).toBe('GET');
+        await route.fulfill({ json: { users: Object.values(validUsers), more: false } });
+    });
+
     await page.route('**/api/order/menu', async (route) => {
         const menuRes = [
             { id: 1, title: 'Veggie', image: 'pizza1.png', price: 0.0038, description: 'A garden of delight' },
@@ -102,6 +107,11 @@ async function mockUserApi(page: Page) {
         }
         loggedInUser = user;
         await route.fulfill({ json: { user, token: 'mock-token' } });
+    });
+
+    await page.route(/\/api\/franchise(?:\?.*)?$/, async (route) => {
+        expect(route.request().method()).toBe('GET');
+        await route.fulfill({ json: { franchises, more: false } });
     });
 
     await page.route('**/api/order', async (route) => {
@@ -303,4 +313,18 @@ test('updateUser admin', async ({ page }) => {
     
     await page.waitForSelector('[role="dialog"].hidden', { state: 'attached' });
     await expect(page.getByText('常用名字', { exact: true })).toBeVisible();
+});
+
+test('listUsers', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click(); 
+    
+    await page.getByRole('link', { name: 'Admin' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
 });
