@@ -75,8 +75,28 @@ jobs:
           };
           EOF
           npm start > "$RUNNER_TEMP/jwt-pizza-service.log" 2>&1 &
-          echo $! > "$RUNNER_TEMP/jwt-pizza-service.pid"
-          curl --fail --retry 20 --retry-delay 1 http://localhost:3000/api/docs
+          backend_pid=$!
+          echo "$backend_pid" > "$RUNNER_TEMP/jwt-pizza-service.pid"
+
+          for attempt in {1..20}; do
+            if curl --fail --silent http://localhost:3000/api/docs; then
+              echo "Backend is ready."
+              exit 0
+            fi
+
+            if ! kill -0 "$backend_pid" 2>/dev/null; then
+              echo "Backend exited before becoming ready."
+              cat "$RUNNER_TEMP/jwt-pizza-service.log"
+              exit 1
+            fi
+
+            echo "Backend is not ready yet; retrying..."
+            sleep 1
+          done
+
+          echo "Backend did not become ready."
+          cat "$RUNNER_TEMP/jwt-pizza-service.log"
+          exit 1
 
       - name: Seed backend test data
         run: |
