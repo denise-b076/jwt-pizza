@@ -1,6 +1,131 @@
-import { test, expect } from 'playwright-test-coverage';
+import { test, expect } from './testSetup';
+import { Page } from '@playwright/test';
+import type { Order } from '../src/service/pizzaService';
+
+type MockUser = {
+    id: string;
+    name: string;
+    email: string;
+    password: string;
+    roles: { role: string }[];
+};
+
+async function mockUserApi(page: Page) {
+    let loggedInUser: MockUser | undefined;
+    const validUsers: Record<string, MockUser> = {
+        'a@jwt.com': { id: '1', name: '常用名字', email: 'a@jwt.com', password: 'admin', roles: [{ role: 'admin' }] },
+        'f@jwt.com': { id: '2', name: 'pizza franchisee', email: 'f@jwt.com', password: 'franchisee', roles: [{ role: 'franchisee' }] },
+    };
+    const franchises = [
+        {
+            id: 1,
+            name: 'pizzaPocket',
+            admins: [{ id: 2, name: 'pizza franchisee', email: 'f@jwt.com' }],
+            stores: [],
+        },
+    ];
+    const orders: Order[] = [];
+
+    await page.route('**/api/auth', async (route) => {
+        if (route.request().method() === 'POST') {
+            const registerReq = route.request().postDataJSON();
+            const user: MockUser = {
+                id: String(Object.keys(validUsers).length + 1),
+                name: registerReq.name,
+                email: registerReq.email,
+                password: registerReq.password,
+                roles: [{ role: 'diner' }],
+            };
+            validUsers[user.email] = user;
+            loggedInUser = user;
+            await route.fulfill({ json: { user, token: 'mock-token' } });
+            return;
+        }
+
+        if (route.request().method() === 'DELETE') {
+            loggedInUser = undefined;
+            await route.fulfill({ json: { message: 'logout successful' } });
+            return;
+        }
+
+        const loginReq = route.request().postDataJSON();
+        const user = validUsers[loginReq.email];
+        if (!user || user.password !== loginReq.password) {
+            await route.fulfill({ status: 404, json: { message: 'unknown user' } });
+            return;
+        }
+        loggedInUser = user;
+        expect(route.request().method()).toBe('PUT');
+        await route.fulfill({ json: { user, token: 'mock-token' } });
+    });
+
+    await page.route('**/api/user/me', async (route) => {
+        expect(route.request().method()).toBe('GET');
+        await route.fulfill({ json: loggedInUser });
+    });
+
+    await page.route('**/api/order/menu', async (route) => {
+        const menuRes = [
+            { id: 1, title: 'Veggie', image: 'pizza1.png', price: 0.0038, description: 'A garden of delight' },
+            { id: 2, title: 'Pepperoni', image: 'pizza2.png', price: 0.0042, description: 'Spicy treat' },
+        ];
+        expect(route.request().method()).toBe('GET');
+        await route.fulfill({ json: menuRes });
+    });
+
+    await page.route(/\/api\/user\/([^/?]+)$/, async (route) => {
+        expect(route.request().method()).toBe('PUT');
+        const userId = route.request().url().match(/\/api\/user\/([^/?]+)/)?.[1];
+        const user = Object.values(validUsers).find((candidate) => candidate.id === userId);
+        const updateReq = route.request().postDataJSON();
+
+        if (!user) {
+            await route.fulfill({ status: 404, json: { message: 'unknown user' } });
+            return;
+        }
+
+        if (updateReq.email !== user.email) {
+            delete validUsers[user.email];
+            user.email = updateReq.email;
+            validUsers[user.email] = user;
+        }
+        user.name = updateReq.name;
+        if (updateReq.password) {
+            user.password = updateReq.password;
+        }
+        for (const franchise of franchises) {
+            const admin = franchise.admins.find((candidate) => String(candidate.id) === user.id);
+            if (admin) {
+                admin.name = user.name;
+                admin.email = user.email;
+            }
+        }
+        loggedInUser = user;
+        await route.fulfill({ json: { user, token: 'mock-token' } });
+    });
+
+    await page.route('**/api/order', async (route) => {
+        const orderRes = {
+            dinerId: loggedInUser?.id,
+            orders,
+            page: 1,
+        };
+        expect(route.request().method()).toBe('GET');
+        await route.fulfill({ json: orderRes });
+    });
+
+    await page.route(/\/api\/franchise\/([^/?]+)$/, async (route) => {
+        expect(route.request().method()).toBe('GET');
+        const userId = route.request().url().match(/\/api\/franchise\/([^/?]+)/)?.[1];
+        const franchise = franchises.find((candidate) =>
+            candidate.admins.some((admin) => String(admin.id) === userId)
+        );
+        await route.fulfill({ json: franchise ? [franchise] : [] });
+    });
+}
 
 test('updateUser name', async ({ page }) => {
+    await mockUserApi(page);
     const email = `user${Math.floor(Math.random() * 10000)}@jwt.com`;
     await page.goto('/');
     await page.getByRole('link', { name: 'Register' }).click();
@@ -35,6 +160,7 @@ test('updateUser name', async ({ page }) => {
 });
 
 test('updateUser email', async ({ page }) => {
+    await mockUserApi(page);
     const email = `user${Math.floor(Math.random() * 10000)}@jwt.com`;
     const updatedEmail = `updated${Math.floor(Math.random() * 10000)}@jwt.com`;
     await page.goto('/');
@@ -70,6 +196,7 @@ test('updateUser email', async ({ page }) => {
 });
 
 test('updateUser password', async({ page }) => {
+    await mockUserApi(page);
     const email = `user${Math.floor(Math.random() * 10000)}@jwt.com`;
     await page.goto('/');
     await page.getByRole('link', { name: 'Register' }).click();
@@ -101,6 +228,7 @@ test('updateUser password', async({ page }) => {
 });
 
 test ('updateUser franchisee', async({ page }) => {
+    await mockUserApi(page);
     await page.goto('/');
     await page.getByRole('link', { name: 'Login' }).click();
     await page.getByRole('textbox', { name: 'Email address' }).fill('f@jwt.com');
@@ -139,6 +267,7 @@ test ('updateUser franchisee', async({ page }) => {
 });
 
 test('updateUser admin', async ({ page }) => {
+    await mockUserApi(page);
     await page.goto('/');
     await page.getByRole('link', { name: 'Login' }).click();
     await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
