@@ -92,6 +92,11 @@ async function basicInit(page: Page) {
     await route.fulfill({ json: loggedInUser });
   });
 
+  await page.route(/\/api\/user\?.*$/, async (route) => {
+    expect(route.request().method()).toBe('GET');
+    await route.fulfill({ json: { users: Object.values(validUsers), more: false } });
+  });
+
   await page.route('*/**/api/order/menu', async (route) => {
     const menuRes = [
       { id: 1, title: 'Veggie', image: 'pizza1.png', price: 0.0038, description: 'A garden of delight' },
@@ -343,9 +348,10 @@ test('create and delete a franchise', async({ page }) => {
   await page.getByRole('textbox', { name: 'franchisee admin email' }).click();
   await page.getByRole('textbox', { name: 'franchisee admin email' }).fill('f@jwt.com');
   await page.getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('table')).toContainText('TestCool');
+  const franchiseTable = page.getByRole('table').first();
+  await expect(franchiseTable).toContainText('TestCool');
 
-  await page.locator('tbody:nth-child(5) > .border-neutral-500 > .px-6 > .px-2').click();
+  await franchiseTable.getByRole('row', { name: /TestCool/ }).getByRole('button', { name: 'Close' }).click();
   await page.getByRole('button', { name: 'Close' }).click();
-  await expect(page.getByRole('cell', { name: 'TestCool' })).not.toBeVisible();
+  await expect(franchiseTable.getByRole('cell', { name: 'TestCool' })).not.toBeVisible();
 });
