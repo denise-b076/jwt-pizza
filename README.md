@@ -30,6 +30,20 @@ You can see a working example of the application at [pizza.cs329.click](https://
    npm run dev
    ```
 
+### End-to-end tests
+
+The tests in `tests/user.spec.ts` use the real JWT Pizza service. Start the
+`jwt-pizza-service` backend on `http://localhost:3000` with a MySQL database
+configured through its `src/config.js` before running:
+
+```sh
+npm test
+```
+
+The GitHub Actions workflow starts MySQL, checks out the backend repository,
+creates an isolated `pizza_e2e` database, starts the backend, and seeds the
+admin and franchisee records required by these tests.
+
 ## Development notes
 
 JWT Pizza uses Vite, React, Tailwind, and Preline. The following contains some notes about how these components were integrated into the project.
