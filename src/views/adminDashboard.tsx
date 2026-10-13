@@ -66,11 +66,14 @@ export default function AdminDashboard(props: Props) {
 
     try {
       await pizzaService.deleteUser(userToDelete);
-      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userToDelete.id));
       setUserToDelete(null);
       setDeleteUserError(null);
       if (users.length === 1 && userPage > 1) {
         setUserPage((currentPage) => currentPage - 1);
+      } else {
+        const userList = await pizzaService.getUsers(userPage, 10, userNameFilter);
+        setUsers(userList.users);
+        setUserMore(userList.more);
       }
     } catch {
       setDeleteUserError('Unable to delete user');
