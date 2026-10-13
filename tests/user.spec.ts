@@ -10,7 +10,12 @@ type MockUser = {
     roles: { role: string }[];
 };
 
-async function mockUserApi(page: Page) {
+type MockUserApi = {
+    addUsers: (count: number) => MockUser[];
+    removeUsers: (users: MockUser[]) => void;
+};
+
+async function mockUserApi(page: Page): Promise<MockUserApi> {
     let loggedInUser: MockUser | undefined;
     const validUsers: Record<string, MockUser> = {
         'a@jwt.com': { id: '1', name: '常用名字', email: 'a@jwt.com', password: 'admin', roles: [{ role: 'admin' }] },
@@ -25,6 +30,31 @@ async function mockUserApi(page: Page) {
         },
     ];
     const orders: Order[] = [];
+
+    function addUsers(count: number): MockUser[] {
+        const addedUsers: MockUser[] = [];
+        const startingId = Object.keys(validUsers).length + 1;
+
+        for (let index = 0; index < count; index += 1) {
+            const user: MockUser = {
+                id: String(startingId + index),
+                name: `test user ${index + 1}`,
+                email: `testuser${index + 1}@jwt.com`,
+                password: 'test',
+                roles: [{ role: 'diner' }],
+            };
+            validUsers[user.email] = user;
+            addedUsers.push(user);
+        }
+
+        return addedUsers;
+    }
+
+    function removeUsers(usersToRemove: MockUser[]): void {
+        for (const user of usersToRemove) {
+            delete validUsers[user.email];
+        }
+    }
 
     await page.route('**/api/auth', async (route) => {
         if (route.request().method() === 'POST') {
@@ -66,7 +96,17 @@ async function mockUserApi(page: Page) {
 
     await page.route(/\/api\/user\?.*$/, async (route) => {
         expect(route.request().method()).toBe('GET');
-        await route.fulfill({ json: { users: Object.values(validUsers), more: false } });
+        const url = new URL(route.request().url());
+        const pageNumber = Number(url.searchParams.get('page') || 1);
+        const limit = Number(url.searchParams.get('limit') || 10);
+        const start = (pageNumber - 1) * limit;
+        const users = Object.values(validUsers);
+        await route.fulfill({
+            json: {
+                users: users.slice(start, start + limit),
+                more: start + limit < users.length,
+            },
+        });
     });
 
     await page.route('**/api/order/menu', async (route) => {
@@ -132,6 +172,8 @@ async function mockUserApi(page: Page) {
         );
         await route.fulfill({ json: franchise ? [franchise] : [] });
     });
+
+    return { addUsers, removeUsers };
 }
 
 test('updateUser name', async ({ page }) => {
@@ -327,4 +369,54 @@ test('listUsers', async({ page }) => {
     await page.getByRole('link', { name: 'Admin' }).click();
 
     await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+    await expect(page.getByRole('main')).toContainText('常用名字');
+    await expect(page.getByRole('main')).toContainText('pizza franchisee');
+});
+
+test('listUsers after adding a new one', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Register' }).click();
+    await page.getByRole('textbox', { name: 'Full name' }).fill('test');
+    await page.getByRole('textbox', { name: 'Email address' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('test@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('a');
+    await page.getByRole('button', { name: 'Register' }).click();
+
+    await page.getByRole('link', { name: 'Logout' }).click();
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await page.getByRole('cell', { name: 'test', exact: true }).click();
+    await expect(page.getByRole('main')).toContainText('test');
+});
+
+test('listUsers pagination', async({ page }) => {
+    const { addUsers, removeUsers } = await mockUserApi(page);
+    const addedUsers = addUsers(9);
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await expect(page.getByRole('button', { name: 'Prev' })).toBeDisabled();
+    await expect(page.getByRole('main')).not.toContainText('test user 9');
+
+    await page.getByRole('button', { name: 'Next' }).click();
+    await expect(page.getByRole('main')).toContainText('test user 9');
+    await expect(page.getByRole('button', { name: 'Next' })).toBeDisabled();
+
+    await page.getByRole('button', { name: 'Prev' }).click();
+    await expect(page.getByRole('main')).not.toContainText('test user 9');
+
+    await removeUsers(addedUsers);
 });

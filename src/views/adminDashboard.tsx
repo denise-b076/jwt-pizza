@@ -16,15 +16,18 @@ export default function AdminDashboard(props: Props) {
   const [franchiseList, setFranchiseList] = React.useState<FranchiseList>({ franchises: [], more: false });
   const [franchisePage, setFranchisePage] = React.useState(0);
   const [users, setUsers] = React.useState<User[]>([]);
+  const [userPage, setUserPage] = React.useState(1);
+  const [userMore, setUserMore] = React.useState(false);
   const filterFranchiseRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     (async () => {
       setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, '*'));
-      const userList = await pizzaService.getUsers(1, 10, '*');
+      const userList = await pizzaService.getUsers(userPage, 10, '*');
       setUsers(userList.users);
+      setUserMore(userList.more);
     })();
-  }, [props.user, franchisePage]);
+  }, [props.user, franchisePage, userPage]);
 
   function createFranchise() {
     navigate('/admin-dashboard/create-franchise');
@@ -148,6 +151,24 @@ export default function AdminDashboard(props: Props) {
                         ))}
                       </tbody>
                     </table>
+                    <div className="flex justify-end gap-2 p-2">
+                      <button
+                        type="button"
+                        className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
+                        onClick={() => setUserPage(userPage - 1)}
+                        disabled={userPage === 1}
+                      >
+                        Prev
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
+                        onClick={() => setUserPage(userPage + 1)}
+                        disabled={!userMore}
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
