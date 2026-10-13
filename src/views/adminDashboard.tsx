@@ -19,15 +19,17 @@ export default function AdminDashboard(props: Props) {
   const [userPage, setUserPage] = React.useState(1);
   const [userMore, setUserMore] = React.useState(false);
   const filterFranchiseRef = React.useRef<HTMLInputElement>(null);
+  const filterUserRef = React.useRef<HTMLInputElement>(null);
+  const [userNameFilter, setUserNameFilter] = React.useState('*');
 
   React.useEffect(() => {
     (async () => {
       setFranchiseList(await pizzaService.getFranchises(franchisePage, 3, '*'));
-      const userList = await pizzaService.getUsers(userPage, 10, '*');
+      const userList = await pizzaService.getUsers(userPage, 10, userNameFilter);
       setUsers(userList.users);
       setUserMore(userList.more);
     })();
-  }, [props.user, franchisePage, userPage]);
+  }, [props.user, franchisePage, userPage, userNameFilter]);
 
   function createFranchise() {
     navigate('/admin-dashboard/create-franchise');
@@ -43,6 +45,11 @@ export default function AdminDashboard(props: Props) {
 
   async function filterFranchises() {
     setFranchiseList(await pizzaService.getFranchises(franchisePage, 10, `*${filterFranchiseRef.current?.value}*`));
+  }
+
+  function filterUsers() {
+    setUserPage(1);
+    setUserNameFilter(`*${filterUserRef.current?.value ?? ''}*`);
   }
 
   let response = <NotFound />;
@@ -125,6 +132,7 @@ export default function AdminDashboard(props: Props) {
               </div>
             </div>
           </div>
+          <Button className="w-36 text-xs sm:text-sm sm:w-64" title="Add Franchise" onPress={createFranchise} />
           <h3 className="text-neutral-100 text-xl">Users</h3>
           <div className="bg-neutral-100 overflow-clip my-4">
             <div className="flex flex-col">
@@ -151,32 +159,47 @@ export default function AdminDashboard(props: Props) {
                         ))}
                       </tbody>
                     </table>
-                    <div className="flex justify-end gap-2 p-2">
-                      <button
-                        type="button"
-                        className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
-                        onClick={() => setUserPage(userPage - 1)}
-                        disabled={userPage === 1}
-                      >
-                        Prev
-                      </button>
-                      <button
-                        type="button"
-                        className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
-                        onClick={() => setUserPage(userPage + 1)}
-                        disabled={!userMore}
-                      >
-                        Next
-                      </button>
+                    <div className="flex justify-between items-center p-2">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          ref={filterUserRef}
+                          name="Name"
+                          placeholder="Filter users by name"
+                          className="px-2 py-1 text-sm border border-gray-300 rounded-lg"
+                        />
+                        <button
+                          type="button"
+                          className="px-2 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800"
+                          onClick={filterUsers}
+                        >
+                          Search
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
+                          onClick={() => setUserPage(userPage - 1)}
+                          disabled={userPage === 1}
+                        >
+                          Prev
+                        </button>
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800 disabled:bg-neutral-300 disabled:text-gray-500"
+                          onClick={() => setUserPage(userPage + 1)}
+                          disabled={!userMore}
+                        >
+                          Next
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        <div>
-          <Button className="w-36 text-xs sm:text-sm sm:w-64" title="Add Franchise" onPress={createFranchise} />
         </div>
       </View>
     );

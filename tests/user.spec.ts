@@ -100,7 +100,8 @@ async function mockUserApi(page: Page): Promise<MockUserApi> {
         const pageNumber = Number(url.searchParams.get('page') || 1);
         const limit = Number(url.searchParams.get('limit') || 10);
         const start = (pageNumber - 1) * limit;
-        const users = Object.values(validUsers);
+        const nameFilter = url.searchParams.get('name')?.split('*').join('').toLowerCase() || '';
+        const users = Object.values(validUsers).filter((user) => user.name.toLowerCase().includes(nameFilter));
         await route.fulfill({
             json: {
                 users: users.slice(start, start + limit),
@@ -419,4 +420,22 @@ test('listUsers pagination', async({ page }) => {
     await expect(page.getByRole('main')).not.toContainText('test user 9');
 
     await removeUsers(addedUsers);
+});
+
+test('listUsers filter', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await page.getByRole('textbox', { name: 'Name' }).fill('pizza');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).not.toBeVisible();
+    await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
 });
