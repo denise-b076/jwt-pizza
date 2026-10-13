@@ -439,3 +439,25 @@ test('listUsers filter', async({ page }) => {
     await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).not.toBeVisible();
     await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
 });
+
+test('listUsers filter + previously paginated user', async({ page }) => {
+    const { addUsers, removeUsers } = await mockUserApi(page);
+    const addedUsers = addUsers(9);
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await page.getByRole('textbox', { name: 'Name' }).fill('test');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    await expect(usersTable.getByRole('cell', { name: 'test user 1', exact: true })).toBeVisible();
+    await expect(usersTable.getByRole('cell', { name: 'test user 9', exact: true })).toBeVisible();
+
+    await removeUsers(addedUsers);
+});
