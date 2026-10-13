@@ -19,6 +19,7 @@ export default function AdminDashboard(props: Props) {
   const [userPage, setUserPage] = React.useState(1);
   const [userMore, setUserMore] = React.useState(false);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
+  const [deleteUserError, setDeleteUserError] = React.useState<string | null>(null);
   const filterFranchiseRef = React.useRef<HTMLInputElement>(null);
   const filterUserRef = React.useRef<HTMLInputElement>(null);
   const [userNameFilter, setUserNameFilter] = React.useState('*');
@@ -55,6 +56,7 @@ export default function AdminDashboard(props: Props) {
 
   function cancelDeleteUser() {
     setUserToDelete(null);
+    setDeleteUserError(null);
   }
 
   async function deleteUser() {
@@ -62,9 +64,17 @@ export default function AdminDashboard(props: Props) {
       return;
     }
 
-    await pizzaService.deleteUser(userToDelete);
-    setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userToDelete.id));
-    setUserToDelete(null);
+    try {
+      await pizzaService.deleteUser(userToDelete);
+      setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userToDelete.id));
+      setUserToDelete(null);
+      setDeleteUserError(null);
+      if (users.length === 1 && userPage > 1) {
+        setUserPage((currentPage) => currentPage - 1);
+      }
+    } catch {
+      setDeleteUserError('Unable to delete user');
+    }
   }
 
   let response = <NotFound />;
@@ -233,6 +243,7 @@ export default function AdminDashboard(props: Props) {
               </div>
               <div className="p-4 text-gray-800">
                 Are you sure you want to delete {userToDelete.name}?
+                {deleteUserError && <div className="mt-2 text-red-700">{deleteUserError}</div>}
               </div>
               <div className="flex justify-end items-center py-3 px-4 border-t bg-slate-200 rounded-b-xl">
                 <button

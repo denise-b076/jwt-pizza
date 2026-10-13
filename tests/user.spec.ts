@@ -445,6 +445,57 @@ test('listUsers filter', async({ page }) => {
     await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
 });
 
+test('listUsers empty filter returns all users', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Admin' }).click();
+
+    await page.getByRole('textbox', { name: 'Name' }).fill('');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).toBeVisible();
+    await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
+});
+
+test('listUsers filter is case-insensitive', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Admin' }).click();
+
+    await page.getByRole('textbox', { name: 'Name' }).fill('PIZZA');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
+    await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).not.toBeVisible();
+});
+
+test('listUsers filter with no matches displays no users', async({ page }) => {
+    await mockUserApi(page);
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Admin' }).click();
+
+    await page.getByRole('textbox', { name: 'Name' }).fill('does not exist');
+    await page.getByRole('button', { name: 'Search' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).not.toBeVisible();
+    await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).not.toBeVisible();
+});
+
 test('listUsers filter + previously paginated user', async({ page }) => {
     const { addUsers, removeUsers } = await mockUserApi(page);
     const addedUsers = addUsers(9);
@@ -525,4 +576,54 @@ test('deleteUser, confirm', async({ page }) => {
     await expect(page.getByRole('cell', { name: 'test user 1' })).not.toBeVisible();
 
     await removeUsers(addedUsers);
+});
+
+test('deleteUser, deleting the last user on a page returns to the previous page', async({ page }) => {
+    const { addUsers, removeUsers } = await mockUserApi(page);
+    const addedUsers = addUsers(9);
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await page.getByRole('button', { name: 'Next' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    const userRow = usersTable.getByRole('row').filter({ hasText: 'test user 9' });
+    await userRow.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete User' }).click();
+
+    await expect(usersTable.getByRole('cell', { name: 'test user 9', exact: true })).not.toBeVisible();
+    await expect(page.getByRole('button', { name: 'Prev' })).toBeDisabled();
+    await expect(usersTable.getByRole('cell', { name: '常用名字', exact: true })).toBeVisible();
+
+    await removeUsers(addedUsers);
+});
+
+test('deleteUser, failed deletion keeps the user and reports an error', async({ page }) => {
+    await mockUserApi(page);
+    await page.route(/\/api\/user\/([^/?]+)$/, async (route) => {
+        if (route.request().method() === 'DELETE') {
+            await route.fulfill({ status: 500, json: { message: 'delete failed' } });
+            return;
+        }
+        await route.fallback();
+    });
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+    await page.getByRole('link', { name: 'Admin' }).click();
+
+    const usersTable = page.getByRole('table').nth(1);
+    const userRow = usersTable.getByRole('row').filter({ hasText: 'pizza franchisee' });
+    await userRow.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.getByRole('button', { name: 'Delete User' }).click();
+
+    await expect(usersTable.getByRole('cell', { name: 'pizza franchisee', exact: true })).toBeVisible();
+    await expect(page.getByText('Unable to delete user', { exact: true })).toBeVisible();
 });
