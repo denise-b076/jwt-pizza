@@ -18,6 +18,7 @@ export default function AdminDashboard(props: Props) {
   const [users, setUsers] = React.useState<User[]>([]);
   const [userPage, setUserPage] = React.useState(1);
   const [userMore, setUserMore] = React.useState(false);
+  const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const filterFranchiseRef = React.useRef<HTMLInputElement>(null);
   const filterUserRef = React.useRef<HTMLInputElement>(null);
   const [userNameFilter, setUserNameFilter] = React.useState('*');
@@ -50,6 +51,20 @@ export default function AdminDashboard(props: Props) {
   function filterUsers() {
     setUserPage(1);
     setUserNameFilter(`*${filterUserRef.current?.value ?? ''}*`);
+  }
+
+  function cancelDeleteUser() {
+    setUserToDelete(null);
+  }
+
+  async function deleteUser() {
+    if (!userToDelete) {
+      return;
+    }
+
+    await pizzaService.deleteUser(userToDelete);
+    setUsers((currentUsers) => currentUsers.filter((user) => user.id !== userToDelete.id));
+    setUserToDelete(null);
   }
 
   let response = <NotFound />;
@@ -142,7 +157,7 @@ export default function AdminDashboard(props: Props) {
                     <table className="min-w-full divide-y divide-gray-200">
                       <thead className="uppercase text-neutral-100 bg-slate-400 border-b-2 border-gray-500">
                         <tr>
-                          {['Name', 'Email', 'Role'].map((header) => (
+                          {['Name', 'Email', 'Role', 'Action'].map((header) => (
                             <th key={header} scope="col" className="px-6 py-3 text-center text-xs font-medium">
                               {header}
                             </th>
@@ -155,6 +170,15 @@ export default function AdminDashboard(props: Props) {
                             <td className="px-6 py-3 text-sm text-gray-800">{listedUser.name}</td>
                             <td className="px-6 py-3 text-sm text-gray-800">{listedUser.email}</td>
                             <td className="px-6 py-3 text-sm text-gray-800">{listedUser.roles?.map((role) => role.role).join(', ')}</td>
+                            <td className="px-6 py-3 text-sm text-gray-800">
+                              <button
+                                type="button"
+                                className="px-2 py-1 text-sm font-semibold rounded-lg border border-orange-400 text-orange-400 hover:border-orange-800 hover:text-orange-800"
+                                onClick={() => setUserToDelete(listedUser)}
+                              >
+                                Delete
+                              </button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -201,6 +225,34 @@ export default function AdminDashboard(props: Props) {
             </div>
           </div>
         </div>
+        {userToDelete && (
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-user-dialog-title" className="size-full fixed inset-0 z-[80] flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-lg m-3 bg-white border shadow-sm rounded-xl">
+              <div className="py-3 px-4 border-b bg-slate-200 rounded-t-xl">
+                <h3 id="delete-user-dialog-title" className="font-bold text-gray-800">DELETING USER</h3>
+              </div>
+              <div className="p-4 text-gray-800">
+                Are you sure you want to delete {userToDelete.name}?
+              </div>
+              <div className="flex justify-end items-center py-3 px-4 border-t bg-slate-200 rounded-b-xl">
+                <button
+                  type="button"
+                  className="py-2 px-3 mr-2 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-red-700 bg-red-700 text-white shadow-sm hover:bg-red-800"
+                  onClick={deleteUser}
+                >
+                  Delete User
+                </button>
+                <button
+                  type="button"
+                  className="py-2 px-3 inline-flex items-center gap-x-2 text-sm font-medium rounded-lg border border-gray-200 bg-white text-gray-800 shadow-sm hover:bg-gray-50"
+                  onClick={cancelDeleteUser}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </View>
     );
   }

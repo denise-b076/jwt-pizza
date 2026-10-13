@@ -120,16 +120,22 @@ async function mockUserApi(page: Page): Promise<MockUserApi> {
     });
 
     await page.route(/\/api\/user\/([^/?]+)$/, async (route) => {
-        expect(route.request().method()).toBe('PUT');
         const userId = route.request().url().match(/\/api\/user\/([^/?]+)/)?.[1];
         const user = Object.values(validUsers).find((candidate) => candidate.id === userId);
-        const updateReq = route.request().postDataJSON();
 
         if (!user) {
             await route.fulfill({ status: 404, json: { message: 'unknown user' } });
             return;
         }
 
+        if (route.request().method() === 'DELETE') {
+            delete validUsers[user.email];
+            await route.fulfill({ json: { message: 'user deleted' } });
+            return;
+        }
+
+        expect(route.request().method()).toBe('PUT');
+        const updateReq = route.request().postDataJSON();
         if (updateReq.email !== user.email) {
             delete validUsers[user.email];
             user.email = updateReq.email;
@@ -393,7 +399,6 @@ test('listUsers after adding a new one', async({ page }) => {
     await page.getByRole('button', { name: 'Login' }).click();
 
     await page.getByRole('link', { name: 'Admin' }).click();
-    await page.getByRole('cell', { name: 'test', exact: true }).click();
     await expect(page.getByRole('main')).toContainText('test');
 });
 
@@ -458,6 +463,66 @@ test('listUsers filter + previously paginated user', async({ page }) => {
     const usersTable = page.getByRole('table').nth(1);
     await expect(usersTable.getByRole('cell', { name: 'test user 1', exact: true })).toBeVisible();
     await expect(usersTable.getByRole('cell', { name: 'test user 9', exact: true })).toBeVisible();
+
+    await removeUsers(addedUsers);
+});
+
+test('deleteUser, no delete', async({ page }) => {
+    const { addUsers, removeUsers } = await mockUserApi(page);
+    const addedUsers = addUsers(9);
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    const usersTable = page.getByRole('table').nth(1);
+    const userRow = usersTable
+        .getByRole('row')
+        .filter({ hasText: 'test user 1' });
+
+    await userRow.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByText('Are you sure you want to')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.getByRole('cell', { name: 'test user 1' })).toBeVisible();
+
+    await removeUsers(addedUsers);
+});
+
+test('deleteUser, confirm', async({ page }) => {
+    const { addUsers, removeUsers } = await mockUserApi(page);
+    const addedUsers = addUsers(9);
+
+    await page.goto('/');
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    const usersTable = page.getByRole('table').nth(1);
+    const userRow = usersTable
+        .getByRole('row')
+        .filter({ hasText: 'test user 1' });
+
+    await userRow.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(page.getByText('Are you sure you want to')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete User' }).click();
+    await expect(page.getByRole('cell', { name: 'test user 1' })).not.toBeVisible();
+
+    await page.getByRole('link', { name: 'Logout' }).click();
+    await page.getByRole('link', { name: 'Login' }).click();
+    await page.getByRole('textbox', { name: 'Email address' }).fill('a@jwt.com');
+    await page.getByRole('textbox', { name: 'Password' }).click();
+    await page.getByRole('textbox', { name: 'Password' }).fill('admin');
+    await page.getByRole('button', { name: 'Login' }).click();
+
+    await page.getByRole('link', { name: 'Admin' }).click();
+    await expect(page.getByRole('cell', { name: 'test user 1' })).not.toBeVisible();
 
     await removeUsers(addedUsers);
 });
