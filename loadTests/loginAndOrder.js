@@ -149,7 +149,7 @@ export function scenario_1() {
 
     if (!check(response, { 'status equals 200': (response) => response.status.toString() === '200' })) {
       console.log(response.body);
-      fail('Login was *not* 200');
+      fail('Order response was *not* 200');
     }
     
     sleep(3)
